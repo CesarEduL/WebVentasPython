@@ -1,31 +1,56 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Procesador de Pagos - Mercado Libre</title>
+    <title>Mercado Libre - Ofertas Especiales</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
     <header class="header">
         <div class="container">
-            <h1>Procesador de Pagos</h1>
+            <h1>Mercado Libre</h1>
+            <nav>
+                <ul>
+                    <li><a href="#products">Productos</a></li>
+                    <li><a href="#cart">Carrito</a></li>
+                </ul>
+            </nav>
         </div>
     </header>
 
     <main class="main-content">
-        <div class="container">
-            <div class="payment-form">
-                <h2>Completa tu pago</h2>
-                <form method="POST" action="/process_payment">
-                    <div class="form-group">
-                        <label for="amount">Monto a pagar (USD):</label>
-                        <input type="number" name="amount" id="amount" placeholder="Ingrese el monto" required>
-                    </div>
+        <section id="products" class="products container">
+            <h2>Ofertas Especiales</h2>
+            <div class="product-list">
+                {% for product in products %}
+                <div class="product-item">
+                    <img src="{{ product.image }}" alt="{{ product.name }}">
+                    <h3>{{ product.name }}</h3>
+                    <p>${{ "%.2f"|format(product.price) }}</p>
+                    <button onclick="addToCart({{ product.id }})" class="btn-primary">Añadir al carrito</button>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
 
+        <section id="cart" class="cart container">
+            <h2>Tu Carrito</h2>
+            <div class="cart-items">
+                <!-- Los items del carrito se cargarán dinámicamente aquí -->
+            </div>
+            <div class="cart-total">
+                <h3>Total: $<span id="cart-total-amount">0.00</span></h3>
+            </div>
+            <button id="checkout-btn" class="btn-primary">Proceder al Pago</button>
+        </section>
+
+        <section id="payment-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Completa tu pago</h2>
+                <form id="payment-form">
                     <div class="form-group">
                         <label for="payment_method">Método de pago:</label>
                         <select name="payment_method" id="payment_method">
@@ -34,25 +59,92 @@
                             <option value="Crypto">Criptomonedas</option>
                         </select>
                     </div>
-
-                    <button type="submit" class="btn-submit">Procesar Pago</button>
+                    <button type="submit" class="btn-primary">Pagar</button>
                 </form>
-
-                {% if result %}
-                <div class="result">
-                    <h2>Resultado del Pago:</h2>
-                    <p>{{ result }}</p>
-                </div>
-                {% endif %}
+                <div id="payment-result" class="payment-result"></div>
             </div>
-        </div>
+        </section>
     </main>
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024 Procesador de Pagos - Mercado Libre. Todos los derechos reservados.</p>
+            <p>&copy; 2024 Mercado Libre. Todos los derechos reservados.</p>
         </div>
     </footer>
-</body>
 
+    <script>
+        let cart = [];
+
+        function addToCart(productId) {
+            const product = {{ products|tojson|safe }}.find(p => p.id === productId);
+            if (product) {
+                cart.push(product);
+                updateCart();
+            }
+        }
+
+        function updateCart() {
+            const cartItems = document.querySelector('.cart-items');
+            const cartTotal = document.getElementById('cart-total-amount');
+            cartItems.innerHTML = '';
+            let total = 0;
+
+            cart.forEach(item => {
+                const cartItem = document.createElement('div');
+                cartItem.classList.add('cart-item');
+                cartItem.innerHTML = `
+                    <span>${item.name}</span>
+                    <span>$${item.price.toFixed(2)}</span>
+                `;
+                cartItems.appendChild(cartItem);
+                total += item.price;
+            });
+
+            cartTotal.textContent = total.toFixed(2);
+        }
+
+        const modal = document.getElementById('payment-modal');
+        const checkoutBtn = document.getElementById('checkout-btn');
+        const closeBtn = document.querySelector('.close');
+
+        checkoutBtn.onclick = function() {
+            modal.style.display = "block";
+        }
+
+        closeBtn.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        document.getElementById('payment-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const paymentMethod = document.getElementById('payment_method').value;
+            const total = parseFloat(document.getElementById('cart-total-amount').textContent);
+            
+            fetch('/process_payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_method: paymentMethod,
+                    amount: total
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('payment-result').innerHTML = `<p>${data.message}</p>`;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                document.getElementById('payment-result').innerHTML = `<p>Error al procesar el pago.</p>`;
+            });
+        });
+    </script>
+</body>
 </html>
